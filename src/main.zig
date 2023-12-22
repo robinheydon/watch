@@ -4,6 +4,31 @@ var read_buffer: [64 * 1024]u8 = undefined;
 
 const ms = std.time.ns_per_ms;
 
+fn set_nonblock(handle: std.os.fd_t) !void {
+    _ = try std.os.fcntl(handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
+}
+
+fn read_pipe(handle: std.os.fd_t, output: *std.ArrayList(u8)) !bool {
+    const size_read: usize = std.os.read(handle, &read_buffer) catch |err| blk: {
+        switch (err) {
+            error.WouldBlock => break :blk std.math.maxInt(usize),
+            else => return err,
+        }
+    };
+
+    if (size_read == 0) {
+        // end of file
+        return true;
+    } else if (size_read == std.math.maxInt(usize)) {
+        // would block
+        return false;
+    } else {
+        // normal read success
+        try output.*.appendSlice(read_buffer[0..size_read]);
+        return false;
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -22,68 +47,40 @@ pub fn main() !void {
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
-    var child = std.ChildProcess.init(argv.items, allocator);
-    child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Pipe;
+    while (true) {
+        var child = std.ChildProcess.init(argv.items, allocator);
+        child.stdin_behavior = .Ignore;
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
 
-    try child.spawn();
+        try child.spawn();
 
-    _ = try std.os.fcntl(child.stdout.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
-    _ = try std.os.fcntl(child.stderr.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
+        try set_nonblock(child.stdout.?.handle);
+        try set_nonblock(child.stderr.?.handle);
 
-    var stdout_eof = false;
-    var stderr_eof = false;
-    var output_updated = false;
+        var stdout_eof = false;
+        var stderr_eof = false;
 
-    while (stdout_eof == false or stderr_eof == false) {
-        {
-            const size_read: usize = std.os.read(child.stdout.?.handle, &read_buffer) catch |err| blk: {
-                switch (err) {
-                    error.WouldBlock => break :blk std.math.maxInt(usize),
-                    else => return err,
-                }
-            };
+        while (stdout_eof == false or stderr_eof == false) {
+            const last_len = output.items.len;
 
-            if (size_read == 0) // end of file
-            {
-                stdout_eof = true;
-            } else if (size_read == std.math.maxInt(usize)) // would block
-            {} else {
-                try output.appendSlice(read_buffer[0..size_read]);
-                output_updated = true;
-            }
-        }
-        {
-            const size_read: usize = std.os.read(child.stderr.?.handle, &read_buffer) catch |err| blk: {
-                switch (err) {
-                    error.WouldBlock => break :blk std.math.maxInt(usize),
-                    else => return err,
-                }
-            };
+            stdout_eof = try read_pipe(child.stdout.?.handle, &output);
+            stderr_eof = try read_pipe(child.stderr.?.handle, &output);
 
-            if (size_read == 0) // end of file
-            {
-                stderr_eof = true;
-            } else if (size_read == std.math.maxInt(usize)) // would block
-            {} else {
-                try output.appendSlice(read_buffer[0..size_read]);
-                output_updated = true;
+            std.time.sleep(50 * ms);
+
+            if (output.items.len != last_len) {
+                std.debug.print("\n'{'}'\n", .{std.zig.fmtEscapes(output.items)});
             }
         }
 
-        std.time.sleep(250 * ms);
+        const term = try child.wait();
+        _ = term;
 
-        if (output_updated) {
+        if (output.items.len > 0) {
             std.debug.print("\n'{'}'\n", .{std.zig.fmtEscapes(output.items)});
-            output_updated = false;
         }
-    }
 
-    const term = try child.wait();
-    _ = term;
-
-    if (output.items.len > 0) {
-        std.debug.print("\n'{'}'\n", .{std.zig.fmtEscapes(output.items)});
+        output.clearRetainingCapacity();
     }
 }
