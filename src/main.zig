@@ -1,6 +1,6 @@
 const std = @import("std");
 
-var read_buffer: [64*1024]u8 = undefined;
+var read_buffer: [64 * 1024]u8 = undefined;
 
 const ms = std.time.ns_per_ms;
 
@@ -29,64 +29,52 @@ pub fn main() !void {
 
     try child.spawn();
 
-    _ = try std.os.fcntl (child.stdout.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
-    _ = try std.os.fcntl (child.stderr.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
+    _ = try std.os.fcntl(child.stdout.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
+    _ = try std.os.fcntl(child.stderr.?.handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
 
     var stdout_eof = false;
     var stderr_eof = false;
     var output_updated = false;
 
-    while (stdout_eof == false or stderr_eof == false)
-    {
+    while (stdout_eof == false or stderr_eof == false) {
         {
-            const size_read : usize = std.os.read (child.stdout.?.handle, &read_buffer) catch |err| blk: {
-                switch (err)
-                {
-                    error.WouldBlock => break :blk std.math.maxInt (usize),
-                    else => return err
+            const size_read: usize = std.os.read(child.stdout.?.handle, &read_buffer) catch |err| blk: {
+                switch (err) {
+                    error.WouldBlock => break :blk std.math.maxInt(usize),
+                    else => return err,
                 }
             };
 
             if (size_read == 0) // end of file
             {
                 stdout_eof = true;
-            }
-            else if (size_read == std.math.maxInt (usize)) // would block
-            {
-            }
-            else
-            {
-                try output.appendSlice (read_buffer[0..size_read]);
+            } else if (size_read == std.math.maxInt(usize)) // would block
+            {} else {
+                try output.appendSlice(read_buffer[0..size_read]);
                 output_updated = true;
             }
         }
         {
-            const size_read : usize = std.os.read (child.stderr.?.handle, &read_buffer) catch |err| blk: {
-                switch (err)
-                {
-                    error.WouldBlock => break :blk std.math.maxInt (usize),
-                    else => return err
+            const size_read: usize = std.os.read(child.stderr.?.handle, &read_buffer) catch |err| blk: {
+                switch (err) {
+                    error.WouldBlock => break :blk std.math.maxInt(usize),
+                    else => return err,
                 }
             };
 
             if (size_read == 0) // end of file
             {
                 stderr_eof = true;
-            }
-            else if (size_read == std.math.maxInt (usize)) // would block
-            {
-            }
-            else
-            {
-                try output.appendSlice (read_buffer[0..size_read]);
+            } else if (size_read == std.math.maxInt(usize)) // would block
+            {} else {
+                try output.appendSlice(read_buffer[0..size_read]);
                 output_updated = true;
             }
         }
 
-        std.time.sleep (250 * ms);
+        std.time.sleep(250 * ms);
 
-        if (output_updated)
-        {
+        if (output_updated) {
             std.debug.print("\n'{'}'\n", .{std.zig.fmtEscapes(output.items)});
             output_updated = false;
         }
