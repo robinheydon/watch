@@ -29,6 +29,9 @@ var follow_end : bool = false;
 var line_offset : usize = 0;
 var number_lines : usize = 0;
 
+var exit_buffer : [1024]u8 = undefined;
+var exit_message : ?[]const u8 = null;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +162,8 @@ pub fn main() !void {
     const err = std.os.system.sigaction (std.posix.SIG.INT, &int, null);
     std.debug.assert (err == 0);
 
+    defer show_exit_message ();
+
     start_screen ();
     defer end_screen ();
 
@@ -203,8 +208,12 @@ pub fn main() !void {
             _ = try child.?.kill ();
         }
 
-        const term = try child.?.wait();
-        child = null; _ = term;
+        _ = child.?.wait() catch |child_err|
+        {
+            exit_message = std.fmt.bufPrint (&exit_buffer, "Error: {s}", .{@errorName (child_err)}) catch { return; };
+            running = false;
+        };
+        child = null;
 
         last_output.clearRetainingCapacity();
         try last_output.appendSlice (current_output.items);
@@ -220,6 +229,18 @@ pub fn main() !void {
 
             std.time.sleep(10 * ms);
         }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+fn show_exit_message () void
+{
+    if (exit_message) |msg|
+    {
+        std.debug.print ("{s}\n", .{msg});
     }
 }
 
