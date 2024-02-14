@@ -3,6 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -465,6 +466,24 @@ fn clear_to_end_of_line () void
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+fn clear_to_end_of_screen () void
+{
+    stdout.writeAll ("\x1B[0J") catch {};
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+fn clear_screen () void
+{
+    stdout.writeAll ("\x1B[2J") catch {};
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
 fn update_display () void
 {
     const now = std.time.milliTimestamp ();
@@ -473,10 +492,12 @@ fn update_display () void
     if (size.cols != last_size.cols)
     {
         display_update_required = true;
+        clear_screen ();
     }
     if (size.rows != last_size.rows)
     {
         display_update_required = true;
+        clear_screen ();
     }
 
     last_size = size;
@@ -502,21 +523,27 @@ fn update_display () void
     }) catch {return;};
 
     move_to (0, 0);
-    set_color (.{.color = 2, .underline = true});
-    stdout.print ("{s}", .{out}) catch {};
-    const fill = @min (buffer.len, size.cols - out.len - time.len - 3);
-    const spaces = " " ** 256;
-    stdout.print ("{s}", .{spaces[0..fill]}) catch {};
-    if (child == null)
-    {
-        stdout.writeAll (" : ") catch {};
-    }
-    else
-    {
-        stdout.writeAll (" # ") catch {};
-    }
-    stdout.print ("{s}", .{time}) catch {};
     clear_to_end_of_line ();
+    set_color (.{.color = 2, .underline = true});
+    if (out.len + time.len + 3 < size.cols)
+    {
+        stdout.print ("{s}", .{out}) catch {};
+        const fill = if (out.len + time.len + 3 > size.cols) 0 else @min (buffer.len, size.cols - out.len - time.len - 3);
+        const spaces = " " ** 256;
+        stdout.print ("{s}", .{spaces[0..fill]}) catch {};
+    }
+    if (time.len + 3 < size.cols)
+    {
+        if (child == null)
+        {
+            stdout.writeAll (" : ") catch {};
+        }
+        else
+        {
+            stdout.writeAll (" # ") catch {};
+        }
+        stdout.print ("{s}", .{time}) catch {};
+    }
     set_color (.{});
 
     if (!display_update_required)
@@ -526,6 +553,9 @@ fn update_display () void
 
     calculate_lines (current_output.items, &current_lines, size.cols - 1);
     calculate_lines (last_output.items, &last_lines, size.cols - 1);
+
+    move_to (0, 1);
+    clear_to_end_of_screen ();
 
     number_lines = @max (current_lines.items.len, last_lines.items.len);
 
@@ -555,15 +585,15 @@ fn update_display () void
         {
             const start_index = current_lines.items[line].start;
             const end_index = current_lines.items[line].end;
-            stdout.print ("{s}", .{current_output.items[start_index .. end_index]}) catch {};
             clear_to_end_of_line ();
+            stdout.print ("{s}", .{current_output.items[start_index .. end_index]}) catch {};
         }
         else if (line < last_lines.items.len)
         {
             const start_index = last_lines.items[line].start;
             const end_index = last_lines.items[line].end;
-            stdout.print ("{s}", .{last_output.items[start_index .. end_index]}) catch {};
             clear_to_end_of_line ();
+            stdout.print ("{s}", .{last_output.items[start_index .. end_index]}) catch {};
         }
         else
         {
@@ -571,7 +601,7 @@ fn update_display () void
         }
     }
 
-    set_color (.{.color = 2});
+    set_color (.{.color = 6});
 
     for (0..size.rows-1) |i|
     {
@@ -667,29 +697,32 @@ fn calculate_lines (buffer: []const u8, lines: *std.ArrayList (Range), width: us
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-var original_term : std.os.linux.termios = undefined;
+var original_term : std.os.termios = undefined;
 
 fn start_input () void
 {
-    _ = std.os.linux.tcgetattr (stdin.handle, &original_term);
+    original_term = std.os.tcgetattr (stdin.handle) catch undefined;
 
-    var term = original_term;
+    var term = std.mem.zeroes (std.os.termios);
 
-    // term.lflag |= std.os.linux.IGNBRK;
     term.cflag.CREAD = true;
-    term.iflag.IGNCR = true;
-    term.iflag.IGNBRK = true;
-    term.lflag.ECHO = false;
-    term.iflag.IXON = false;
-    term.iflag.IXOFF = false;
-    term.lflag.ICANON = false;
-    term.iflag.ICRNL = false;
-    term.lflag.ISIG = false;
     term.iflag.BRKINT = false;
-    term.cc[@intCast (@intFromEnum(std.os.linux.cc_t.VMIN))] = @enumFromInt (0);
-    term.cc[@intCast (@intFromEnum(std.os.linux.cc_t.VTIME))] = @enumFromInt (1);
+    term.iflag.ICRNL = false;
+    term.iflag.IGNBRK = true;
+    term.iflag.IGNCR = true;
+    term.iflag.IXOFF = false;
+    term.iflag.IXON = false;
+    term.lflag.ECHO = false;
+    term.lflag.ECHOE = false;
+    term.lflag.ECHOK = false;
+    term.lflag.ECHONL = false;
+    term.lflag.ICANON = false;
+    term.lflag.IEXTEN = false;
+    term.lflag.ISIG = false;
+    term.cc[@intCast (@intFromEnum(std.os.cc_t.VMIN))] = @enumFromInt (0);
+    term.cc[@intCast (@intFromEnum(std.os.cc_t.VTIME))] = @enumFromInt (1);
 
-    _ = std.os.linux.tcsetattr (stdin.handle, std.os.linux.TCSA.NOW, &term);
+    std.os.tcsetattr (stdin.handle, std.os.TCSA.NOW, term) catch {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -698,7 +731,7 @@ fn start_input () void
 
 fn end_input () void
 {
-    _ = std.os.linux.tcsetattr (stdin.handle, std.os.linux.TCSA.NOW, &original_term);
+    std.os.tcsetattr (stdin.handle, std.os.TCSA.NOW, original_term) catch {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -744,20 +777,42 @@ const TerminalSize = struct {
 
 fn get_terminal_size () TerminalSize
 {
-    var size : std.os.linux.winsize = undefined;
-    const err = std.os.linux.ioctl (stdout_handle.handle, std.os.linux.T.IOCGWINSZ, @intFromPtr (&size));
-    if (err == 0)
+    if (builtin.os.tag == .linux)
     {
-        return .{
-            .rows = size.ws_row,
-            .cols = size.ws_col,
-        };
+        var size : std.os.linux.winsize = undefined;
+        const err = std.os.linux.ioctl (stdout_handle.handle, std.os.linux.T.IOCGWINSZ, @intFromPtr (&size));
+        if (err == 0)
+        {
+            return .{
+                .rows = size.ws_row,
+                .cols = size.ws_col,
+            };
+        }
+        else
+        {
+            std.debug.print ("ioctl IOCGWINSZ {}\n", .{err});
+            return .{};
+        }
     }
-    else
+    else if (builtin.os.tag == .macos)
     {
-        std.debug.print ("ioctl IOCGWINSZ {}\n", .{err});
-        return .{};
+        var size : std.c.winsize = undefined;
+
+        const err = std.c.ioctl (stdout_handle.handle, std.c.T.IOCGWINSZ, @intFromPtr (&size));
+        if (err == 0)
+        {
+            return .{
+                .rows = size.ws_row,
+                .cols = size.ws_col,
+            };
+        }
+        else
+        {
+            std.debug.print ("ioctl IOCGWINSZ {}\n", .{err});
+            return .{};
+        }
     }
+    return .{};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
