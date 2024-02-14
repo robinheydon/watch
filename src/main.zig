@@ -201,7 +201,7 @@ pub fn main() !void {
             process_input ();
             update_display ();
 
-            std.time.sleep(10 * ms);
+            std.time.sleep(100 * ms);
         }
 
         if (running == false)
@@ -228,7 +228,7 @@ pub fn main() !void {
             process_input ();
             update_display ();
 
-            std.time.sleep(10 * ms);
+            std.time.sleep(100 * ms);
         }
     }
 }
@@ -257,6 +257,7 @@ const KeyBinding = struct
 
 const keys = &[_]KeyBinding {
     .{ .data = "\x03", .callback = do_control_c },
+    .{ .data = "\x0c", .callback = do_control_l },
     .{ .data = "h", .callback = do_first_line },
     .{ .data = "j", .callback = do_down_line },
     .{ .data = "k", .callback = do_up_line },
@@ -328,6 +329,17 @@ fn process_input () void
 fn do_control_c () void
 {
     running = false;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+fn do_control_l () void
+{
+    display_update_required = true;
+    move_to (0, 0);
+    clear_to_end_of_screen ();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -577,54 +589,49 @@ fn update_display () void
         const line = i + line_offset;
 
         move_to (1, @intCast (i + 1));
+        clear_to_end_of_line ();
 
         if (line < current_lines.items.len)
         {
             const start_index = current_lines.items[line].start;
             const end_index = current_lines.items[line].end;
-            clear_to_end_of_line ();
             stdout.print ("{s}", .{current_output.items[start_index .. end_index]}) catch {};
         }
         else if (line < last_lines.items.len)
         {
             const start_index = last_lines.items[line].start;
             const end_index = last_lines.items[line].end;
-            clear_to_end_of_line ();
             stdout.print ("{s}", .{last_output.items[start_index .. end_index]}) catch {};
         }
         else
         {
-            clear_to_end_of_line ();
         }
     }
 
-    set_color (.{.color = 6});
+    set_color (.{.color = 2, .underline = false});
 
     for (0..size.rows-1) |i|
     {
         const line = i + line_offset;
+        move_to (0, @intCast (i + 1));
 
         if (line < current_lines.items.len)
         {
-            move_to (0, @intCast (i + 1));
             stdout.writeAll ("+") catch {};
         }
         else if (line < last_lines.items.len)
         {
             if (empty)
             {
-                move_to (0, @intCast (i + 1));
                 stdout.writeAll (" ") catch {};
             }
             else
             {
-                move_to (0, @intCast (i + 1));
                 stdout.writeAll ("~") catch {};
             }
         }
         else
         {
-            move_to (0, @intCast (i + 1));
             stdout.writeAll ("^") catch {};
         }
     }
