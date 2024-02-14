@@ -554,9 +554,6 @@ fn update_display () void
     calculate_lines (current_output.items, &current_lines, size.cols - 1);
     calculate_lines (last_output.items, &last_lines, size.cols - 1);
 
-    move_to (0, 1);
-    clear_to_end_of_screen ();
-
     number_lines = @max (current_lines.items.len, last_lines.items.len);
 
     if (follow_end)

@@ -12,7 +12,7 @@ numbers = '0123456789' * 200
 
 for i in range (num_lines):
     x = random.randint (1, 132)
-    # time.sleep (0.01)
+    time.sleep (0.05)
     sys.stdout.flush ()
     ch = f'{i}'[-1]
     col = 30 + i % 8
