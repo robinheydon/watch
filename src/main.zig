@@ -676,18 +676,18 @@ fn start_input () void
     var term = original_term;
 
     // term.lflag |= std.os.linux.IGNBRK;
-    term.lflag |= std.os.linux.CREAD;
-    term.lflag |= std.os.linux.IGNCR;
-    term.lflag |= std.os.linux.IGNBRK;
-    term.lflag &= ~std.os.linux.ECHO;
-    term.lflag &= ~std.os.linux.IXON;
-    term.lflag &= ~std.os.linux.IXOFF;
-    term.lflag &= ~std.os.linux.ICANON;
-    term.lflag &= ~std.os.linux.ICRNL;
-    term.lflag &= ~std.os.linux.ISIG;
-    term.lflag &= ~std.os.linux.BRKINT;
-    term.cc[std.os.linux.V.MIN] = 0;
-    term.cc[std.os.linux.V.TIME] = 1;
+    term.cflag.CREAD = true;
+    term.iflag.IGNCR = true;
+    term.iflag.IGNBRK = true;
+    term.lflag.ECHO = false;
+    term.iflag.IXON = false;
+    term.iflag.IXOFF = false;
+    term.lflag.ICANON = false;
+    term.iflag.ICRNL = false;
+    term.lflag.ISIG = false;
+    term.iflag.BRKINT = false;
+    term.cc[@intCast (@intFromEnum(std.os.linux.cc_t.VMIN))] = @enumFromInt (0);
+    term.cc[@intCast (@intFromEnum(std.os.linux.cc_t.VTIME))] = @enumFromInt (1);
 
     _ = std.os.linux.tcsetattr (stdin.handle, std.os.linux.TCSA.NOW, &term);
 }
