@@ -749,7 +749,7 @@ fn start_screen () void
     // cursor_invisible
     stdout.writeAll ("\x1B[?25l") catch {};
     // enter_am_mode
-    stdout.writeAll ("\x1B[?7h") catch {};
+    stdout.writeAll ("\x1B[?7l") catch {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -763,7 +763,7 @@ fn end_screen () void
     // cursor_visible
     stdout.writeAll ("\x1B[?12;25h") catch {};
     // exit_am_mode
-    stdout.writeAll ("\x1B[?7l") catch {};
+    stdout.writeAll ("\x1B[?7h") catch {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
