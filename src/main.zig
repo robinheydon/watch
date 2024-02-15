@@ -723,8 +723,8 @@ fn start_input () void
     term.lflag.ICANON = false;
     term.lflag.IEXTEN = false;
     term.lflag.ISIG = false;
-    term.cc[@intCast (@intFromEnum(std.os.cc_t.VMIN))] = @enumFromInt (0);
-    term.cc[@intCast (@intFromEnum(std.os.cc_t.VTIME))] = @enumFromInt (1);
+    term.cc[@intFromEnum (std.os.V.MIN)] = 0;
+    term.cc[@intFromEnum (std.os.V.TIME)] = 1;
 
     std.os.tcsetattr (stdin.handle, std.os.TCSA.NOW, term) catch {};
 }
