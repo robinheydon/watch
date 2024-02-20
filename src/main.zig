@@ -30,6 +30,8 @@ var follow_end : bool = false;
 var line_offset : usize = 0;
 var number_lines : usize = 0;
 
+var command_line : []u8 = undefined;
+
 var exit_buffer : [1024]u8 = undefined;
 var exit_message : ?[]const u8 = null;
 
@@ -87,7 +89,7 @@ var stdin : std.fs.File = undefined;
 
 var child : ?std.ChildProcess = null;
 
-var debug_message : [256]u8 = undefined;
+var debug_message : [1024]u8 = undefined;
 var debug_len : usize = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +161,20 @@ pub fn main() !void {
         .mask = std.os.system.empty_sigset,
         .flags = 0,
     };
+
+    var buffer = std.ArrayList (u8).init (allocator);
+    var writer = buffer.writer ();
+    for (0.., argv.items) |i,arg|
+    {
+        if (i > 0)
+        {
+            try writer.writeAll (" ");
+        }
+        try writer.print ("{s}", .{arg});
+    }
+
+    command_line = buffer.items;
+    defer buffer.deinit ();
 
     const err = std.os.system.sigaction (std.posix.SIG.INT, &int, null);
     std.debug.assert (err == 0);
@@ -277,7 +293,7 @@ const keys = &[_]KeyBinding {
 
 fn process_input () void
 {
-    var buffer: [256]u8 = undefined;
+    var buffer: [1024]u8 = undefined;
     const len = stdin.read (&buffer) catch |err| {
         if (err == error.WouldBlock)
         {
@@ -516,32 +532,26 @@ fn update_display () void
 
     const day : u64 = @intCast (@mod (now, 1000 * 60 * 60 * 24));
     const seconds = @divFloor (day, 1000);
-    const milli = @mod (day, 1000);
     const sec = @mod (seconds, 60);
     const min = @mod (@divFloor (seconds, 60), 60);
     const hrs = @mod (@divFloor (seconds, 3600), 24);
 
-    var buffer: [256]u8 = undefined;
-    var time_buffer: [256]u8 = undefined;
+    var time_buffer: [1024]u8 = undefined;
 
     number_lines = @max (current_lines.items.len, last_lines.items.len);
 
-    const out = std.fmt.bufPrint (&buffer, "{}x{} : {}/{}/{} : {s}", .{
-        size.cols, size.rows, line_offset, number_lines, follow_end, debug_message[0..debug_len],
-    }) catch {return;};
-
-    const time = std.fmt.bufPrint (&time_buffer, "{d:0>2}:{d:0>2}:{d:0>2}.{d}", .{
-        hrs, min, sec, milli / 100,
+    const time = std.fmt.bufPrint (&time_buffer, "{d:0>2}:{d:0>2}:{d:0>2}", .{
+        hrs, min, sec,
     }) catch {return;};
 
     move_to (0, 0);
     clear_to_end_of_line ();
     set_color (.{.color = 2, .underline = true});
-    if (out.len + time.len + 3 < size.cols)
+    if (command_line.len + time.len + 3 < size.cols)
     {
-        stdout.print ("{s}", .{out}) catch {};
-        const fill = if (out.len + time.len + 3 > size.cols) 0 else @min (buffer.len, size.cols - out.len - time.len - 3);
-        const spaces = " " ** 256;
+        stdout.print ("{s}", .{command_line}) catch {};
+        const fill = if (command_line.len + time.len + 3 > size.cols) 0 else @min (1024, size.cols - command_line.len - time.len - 3);
+        const spaces = " " ** 1024;
         stdout.print ("{s}", .{spaces[0..fill]}) catch {};
     }
     if (time.len + 3 < size.cols)
