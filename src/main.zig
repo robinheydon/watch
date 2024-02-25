@@ -46,7 +46,7 @@ const ms = std.time.ns_per_ms;
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 fn set_nonblock(handle: std.os.fd_t) !void {
-    _ = try std.os.fcntl(handle, std.os.system.F.SETFL, 1 << @bitOffsetOf(std.os.system.O, "NONBLOCK"));
+    _ = try std.os.fcntl(handle, std.os.system.F.SETFL, std.os.system.O.NONBLOCK);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -176,7 +176,7 @@ pub fn main() !void {
     command_line = buffer.items;
     defer buffer.deinit ();
 
-    const err = std.os.system.sigaction (std.posix.SIG.INT, &int, null);
+    const err = std.os.system.sigaction (std.os.SIG.INT, &int, null);
     std.debug.assert (err == 0);
 
     defer show_exit_message ();
@@ -719,22 +719,22 @@ fn start_input () void
 
     var term = std.mem.zeroes (std.os.termios);
 
-    term.cflag.CREAD = true;
-    term.iflag.BRKINT = false;
-    term.iflag.ICRNL = false;
-    term.iflag.IGNBRK = true;
-    term.iflag.IGNCR = true;
-    term.iflag.IXOFF = false;
-    term.iflag.IXON = false;
-    term.lflag.ECHO = false;
-    term.lflag.ECHOE = false;
-    term.lflag.ECHOK = false;
-    term.lflag.ECHONL = false;
-    term.lflag.ICANON = false;
-    term.lflag.IEXTEN = false;
-    term.lflag.ISIG = false;
-    term.cc[@intFromEnum (std.os.V.MIN)] = 0;
-    term.cc[@intFromEnum (std.os.V.TIME)] = 1;
+    term.cflag |= std.os.linux.CREAD;
+    term.iflag &= ~std.os.linux.BRKINT;
+    term.iflag &= ~std.os.linux.ICRNL;
+    term.iflag |= std.os.linux.IGNBRK;
+    term.iflag |= std.os.linux.IGNCR;
+    term.iflag &= ~std.os.linux.IXOFF;
+    term.iflag &= ~std.os.linux.IXON;
+    term.lflag &= ~std.os.linux.ECHO;
+    term.lflag &= ~std.os.linux.ECHOE;
+    term.lflag &= ~std.os.linux.ECHOK;
+    term.lflag &= ~std.os.linux.ECHONL;
+    term.lflag &= ~std.os.linux.ICANON;
+    term.lflag &= ~std.os.linux.IEXTEN;
+    term.lflag &= ~std.os.linux.ISIG;
+    term.cc[std.os.linux.V.MIN] = 0;
+    term.cc[std.os.linux.V.TIME] = 1;
 
     std.os.tcsetattr (stdin.handle, std.os.TCSA.NOW, term) catch {};
 }
