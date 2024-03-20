@@ -30,6 +30,8 @@ var follow_end : bool = false;
 var line_offset : usize = 0;
 var number_lines : usize = 0;
 
+var interval : f32 = 0;
+
 var command_line : []u8 = undefined;
 
 var exit_buffer : [1024]u8 = undefined;
@@ -130,8 +132,47 @@ pub fn main() !void {
 
     debug_len = 0;
 
+    var command_only = false;
+    var show_help = false;
+    var next_interval = false;
+
     for (args[1..]) |arg| {
-        try argv.append(arg);
+        if (next_interval)
+        {
+            next_interval = false;
+            interval = try std.fmt.parseFloat (f32, arg);
+        }
+        else if (command_only)
+        {
+            try argv.append(arg);
+        }
+        else if (std.mem.eql (u8, arg, "-n"))
+        {
+            next_interval = true;
+        }
+        else if (std.mem.eql (u8, arg, "-h"))
+        {
+            show_help = true;
+        }
+        else
+        {
+            command_only = true;
+            try argv.append(arg);
+        }
+    }
+
+    if (show_help)
+    {
+        std.debug.print (
+            \\watch [options] [command]
+            \\
+            \\  options:
+            \\   -n (num)            set interval between execution to be (num) seconds
+            \\   -h                  show this help
+            \\
+            , .{}
+        );
+        std.process.exit (0);
     }
 
     current_output = std.ArrayList(u8).init(allocator);
@@ -239,7 +280,7 @@ pub fn main() !void {
 
         const start_wait = std.time.milliTimestamp ();
 
-        while (running and std.time.milliTimestamp () - start_wait < 1000)
+        while (running and std.time.milliTimestamp () - start_wait < @as(i64, @intFromFloat (1000 * interval)))
         {
             process_input ();
             update_display ();
