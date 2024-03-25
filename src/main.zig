@@ -30,7 +30,7 @@ var follow_end : bool = false;
 var line_offset : usize = 0;
 var number_lines : usize = 0;
 
-var interval : f32 = 0;
+var interval : f32 = 2.0;
 
 var command_line : []u8 = undefined;
 
